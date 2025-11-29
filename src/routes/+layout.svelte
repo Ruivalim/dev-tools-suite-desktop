@@ -4,6 +4,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import Sidebar from '$lib/components/layout/Sidebar.svelte';
   import Header from '$lib/components/layout/Header.svelte';
+  import CommandPalette from '$lib/components/CommandPalette.svelte';
   import { themeStore } from '$lib/stores/theme.svelte';
 
   interface SystemStats {
@@ -66,3 +67,5 @@
     </main>
   </div>
 </div>
+
+<CommandPalette />

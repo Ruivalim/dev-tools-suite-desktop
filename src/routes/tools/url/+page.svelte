@@ -1,31 +1,29 @@
 <script lang="ts">
-  import { FileCode, Copy, Check, Trash2, ArrowDownUp, Upload, AlertCircle } from 'lucide-svelte';
-  import { cn } from '$lib/utils/cn';
+  import { Link, Copy, Check, Trash2, ArrowDownUp } from 'lucide-svelte';
 
   let input = $state('');
   let output = $state('');
-  let error = $state('');
   let copied = $state(false);
   let mode = $state<'encode' | 'decode'>('encode');
-  let isDragging = $state(false);
+  let encodeType = $state<'component' | 'full'>('component');
 
   function process() {
-    error = '';
     if (!input.trim()) {
       output = '';
       return;
     }
     try {
       if (mode === 'encode') {
-        output = btoa(unescape(encodeURIComponent(input)));
+        output = encodeType === 'component'
+          ? encodeURIComponent(input)
+          : encodeURI(input);
       } else {
-        output = decodeURIComponent(escape(atob(input)));
+        output = encodeType === 'component'
+          ? decodeURIComponent(input)
+          : decodeURI(input);
       }
     } catch (e) {
-      error = mode === 'encode'
-        ? 'Failed to encode. Make sure the input is valid text.'
-        : 'Failed to decode. Make sure the input is valid Base64.';
-      output = '';
+      output = 'Error: Invalid input for ' + mode;
     }
   }
 
@@ -34,7 +32,6 @@
     input = output;
     output = temp;
     mode = mode === 'encode' ? 'decode' : 'encode';
-    error = '';
   }
 
   async function copyOutput() {
@@ -47,44 +44,11 @@
   function clear() {
     input = '';
     output = '';
-    error = '';
-  }
-
-  function handleDrop(e: DragEvent) {
-    e.preventDefault();
-    isDragging = false;
-
-    const file = e.dataTransfer?.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result;
-      if (typeof result === 'string') {
-        const base64 = result.split(',')[1] || result;
-        input = base64;
-        mode = 'decode';
-        process();
-      }
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function handleDragOver(e: DragEvent) {
-    e.preventDefault();
-    isDragging = true;
-  }
-
-  function handleDragLeave(e: DragEvent) {
-    e.preventDefault();
-    isDragging = false;
   }
 
   // Auto-process on input change
   $effect(() => {
-    if (input !== undefined) {
-      process();
-    }
+    process();
   });
 </script>
 
@@ -93,11 +57,11 @@
   <div class="mb-4 flex items-center justify-between">
     <div class="flex items-center gap-3">
       <div class="p-2 rounded-lg bg-accent-500/10">
-        <FileCode class="w-6 h-6 text-accent-500" />
+        <Link class="w-6 h-6 text-accent-500" />
       </div>
       <div>
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">Base64 Encoder/Decoder</h1>
-        <p class="text-sm text-slate-600 dark:text-slate-400">Encode or decode Base64 strings</p>
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">URL Encoder/Decoder</h1>
+        <p class="text-sm text-slate-600 dark:text-slate-400">Encode or decode URL strings</p>
       </div>
     </div>
   </div>
@@ -123,6 +87,18 @@
       </button>
     </div>
 
+    <div class="flex items-center gap-2 ml-4">
+      <span class="text-sm text-slate-500">Type:</span>
+      <select
+        bind:value={encodeType}
+        onchange={process}
+        class="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+      >
+        <option value="component">Component (recommended)</option>
+        <option value="full">Full URI</option>
+      </select>
+    </div>
+
     <button
       onclick={swap}
       disabled={!output}
@@ -141,60 +117,28 @@
     </button>
   </div>
 
-  <!-- Error -->
-  {#if error}
-    <div class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 flex items-start gap-2">
-      <AlertCircle class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-      <span class="text-sm text-red-700 dark:text-red-300">{error}</span>
-    </div>
-  {/if}
-
   <!-- Editor -->
   <div class="flex-1 grid grid-cols-2 gap-4 min-h-0">
     <!-- Input -->
-    <div
-      class={cn(
-        'flex flex-col rounded-xl border overflow-hidden transition-colors',
-        isDragging
-          ? 'border-accent-500 bg-accent-500/5'
-          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
-      )}
-      ondrop={handleDrop}
-      ondragover={handleDragOver}
-      ondragleave={handleDragLeave}
-    >
-      <div class="p-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+    <div class="flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+      <div class="p-3 border-b border-slate-200 dark:border-slate-800">
         <span class="font-medium text-sm text-slate-700 dark:text-slate-300">
-          {mode === 'encode' ? 'Plain Text' : 'Base64'}
-        </span>
-        <span class="text-xs text-slate-400 flex items-center gap-1">
-          <Upload class="w-3 h-3" />
-          Drop file
+          {mode === 'encode' ? 'Plain Text' : 'Encoded URL'}
         </span>
       </div>
-      <div class="relative flex-1">
-        <textarea
-          bind:value={input}
-          placeholder={mode === 'encode' ? 'Enter text to encode...' : 'Enter Base64 to decode...'}
-          class="w-full h-full p-3 bg-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 resize-none font-mono text-sm focus:outline-none"
-          spellcheck="false"
-        ></textarea>
-        {#if isDragging}
-          <div class="absolute inset-0 flex items-center justify-center bg-accent-500/10 pointer-events-none">
-            <div class="flex items-center gap-2 text-accent-500 font-medium">
-              <Upload class="w-5 h-5" />
-              Drop file to encode
-            </div>
-          </div>
-        {/if}
-      </div>
+      <textarea
+        bind:value={input}
+        placeholder={mode === 'encode' ? 'Enter text to encode...' : 'Enter URL to decode...'}
+        class="flex-1 p-3 bg-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 resize-none font-mono text-sm focus:outline-none"
+        spellcheck="false"
+      ></textarea>
     </div>
 
     <!-- Output -->
     <div class="flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
       <div class="p-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
         <span class="font-medium text-sm text-slate-700 dark:text-slate-300">
-          {mode === 'encode' ? 'Base64' : 'Plain Text'}
+          {mode === 'encode' ? 'Encoded URL' : 'Decoded Text'}
         </span>
         <button
           onclick={copyOutput}
@@ -214,6 +158,8 @@
 
   <!-- Info -->
   <div class="mt-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-xs text-slate-500 dark:text-slate-400">
-    Base64 encoding converts binary data to ASCII text. Supports UTF-8 characters.
+    <strong>Component:</strong> Encodes all special characters (use for query params, path segments)
+    <br />
+    <strong>Full URI:</strong> Preserves URI structure characters like :, /, ?, #, @
   </div>
 </div>
