@@ -41,6 +41,14 @@ export const tools: Tool[] = [
     icon: 'Database',
     category: 'database',
     route: '/tools/postgres'
+  },
+  {
+    id: 'settings',
+    name: 'Settings',
+    description: 'App preferences and configuration',
+    icon: 'Settings',
+    category: 'other',
+    route: '/tools/settings'
   }
 ];
 
