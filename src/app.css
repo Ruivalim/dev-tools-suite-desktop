@@ -1,0 +1,56 @@
+@import 'tailwindcss';
+
+@config '../tailwind.config.js';
+
+/* Base styles */
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #020617; /* slate-950 */
+}
+
+html.light, html.light body {
+  background-color: #ffffff;
+}
+
+:root {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: theme(colors.slate.300);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: theme(colors.slate.700);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: theme(colors.slate.400);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: theme(colors.slate.600);
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid theme(colors.accent.500);
+  outline-offset: 2px;
+}

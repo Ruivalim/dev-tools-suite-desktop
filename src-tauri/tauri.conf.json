@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "devtoolskit",
+  "productName": "devtoolssuite",
   "version": "0.1.0",
-  "identifier": "com.ruivalim.devtoolskit",
+  "identifier": "com.ruivalim.devtoolssuite",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
@@ -12,9 +12,12 @@
   "app": {
     "windows": [
       {
-        "title": "devtoolskit",
-        "width": 800,
-        "height": 600
+        "title": "DevToolsSuite",
+        "width": 1000,
+        "height": 700,
+        "minWidth": 800,
+        "minHeight": 600,
+        "center": true
       }
     ],
     "security": {

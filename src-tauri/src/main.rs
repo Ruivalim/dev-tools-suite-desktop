@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    devtoolskit_lib::run()
+    devtoolssuite_lib::run()
 }
