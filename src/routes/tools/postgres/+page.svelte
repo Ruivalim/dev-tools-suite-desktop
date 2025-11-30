@@ -119,7 +119,7 @@
 
 	onMount(async () => {
 		try {
-			store = await load('postgres-connections.json', { autoSave: true });
+			store = await load('postgres-connections.json');
 			console.log('Store loaded:', store);
 			const saved = await store.get<PgConnection[]>('connections');
 			const savedFolders = await store.get<string[]>('folders');
