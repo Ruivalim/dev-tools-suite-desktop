@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Link, Copy, Check, Trash2, ArrowDownUp } from 'lucide-svelte';
+  import Select from '$lib/components/ui/Select.svelte';
 
   let input = $state('');
   let output = $state('');
@@ -89,14 +90,16 @@
 
     <div class="flex items-center gap-2 ml-4">
       <span class="text-sm text-slate-500">Type:</span>
-      <select
-        bind:value={encodeType}
-        onchange={process}
-        class="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-      >
-        <option value="component">Component (recommended)</option>
-        <option value="full">Full URI</option>
-      </select>
+      <Select
+        value={encodeType}
+        options={[
+          { value: 'component', label: 'Component (recommended)' },
+          { value: 'full', label: 'Full URI' }
+        ]}
+        onchange={(v) => { encodeType = v as typeof encodeType; process(); }}
+        searchable={false}
+        class="w-52"
+      />
     </div>
 
     <button

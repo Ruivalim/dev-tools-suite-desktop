@@ -7,7 +7,7 @@ export interface Tool {
   route: string;
 }
 
-export type ToolCategory = 'encoding' | 'database' | 'network' | 'text' | 'generators' | 'other';
+export type ToolCategory = 'encoding' | 'database' | 'network' | 'text' | 'generators' | 'productivity' | 'other';
 
 export const categoryLabels: Record<ToolCategory, string> = {
   encoding: 'Encoding',
@@ -15,6 +15,7 @@ export const categoryLabels: Record<ToolCategory, string> = {
   network: 'Network',
   text: 'Text',
   generators: 'Generators',
+  productivity: 'Productivity',
   other: 'Other'
 };
 
@@ -24,6 +25,7 @@ export const categoryIcons: Record<ToolCategory, string> = {
   network: 'Globe',
   text: 'Type',
   generators: 'Sparkles',
+  productivity: 'Clock',
   other: 'Wrench'
 };
 
@@ -70,11 +72,19 @@ export const tools: Tool[] = [
   },
   {
     id: 'uuid',
-    name: 'UUID Generator',
-    description: 'Generate random UUIDs (v4)',
+    name: 'ID Generator',
+    description: 'Generate UUID, ULID, and NanoID',
     icon: 'Fingerprint',
     category: 'generators',
     route: '/tools/uuid'
+  },
+  {
+    id: 'faker',
+    name: 'Faker',
+    description: 'Generate fake data for testing (pt-BR supported)',
+    icon: 'Sparkles',
+    category: 'generators',
+    route: '/tools/faker'
   },
   {
     id: 'diff',
@@ -101,12 +111,108 @@ export const tools: Tool[] = [
     route: '/tools/http'
   },
   {
-    id: 'snippets',
-    name: 'Snippets',
-    description: 'Save and organize code and text snippets',
+    id: 'notes',
+    name: 'Notes',
+    description: 'Save and organize quick notes',
     icon: 'StickyNote',
     category: 'text',
-    route: '/tools/snippets'
+    route: '/tools/notes'
+  },
+  {
+    id: 'stopwatch',
+    name: 'Stopwatch',
+    description: 'Track time with alerts and laps',
+    icon: 'Timer',
+    category: 'productivity',
+    route: '/tools/stopwatch'
+  },
+  {
+    id: 'cron',
+    name: 'Cron Parser',
+    description: 'Parse/generate cron expressions with next run times',
+    icon: 'Clock',
+    category: 'productivity',
+    route: '/tools/cron'
+  },
+  {
+    id: 'timestamp',
+    name: 'Unix Timestamp',
+    description: 'Convert between Unix timestamps and human dates',
+    icon: 'Timer',
+    category: 'productivity',
+    route: '/tools/timestamp'
+  },
+  {
+    id: 'color-converter',
+    name: 'Color Converter',
+    description: 'HEX ↔ RGB ↔ HSL ↔ Tailwind with palette generator',
+    icon: 'Palette',
+    category: 'generators',
+    route: '/tools/color-converter'
+  },
+  {
+    id: 'color-picker',
+    name: 'Color Picker',
+    description: 'Visual color picker with eyedropper',
+    icon: 'Pipette',
+    category: 'generators',
+    route: '/tools/color-picker'
+  },
+  {
+    id: 'lorem',
+    name: 'Lorem Ipsum',
+    description: 'Generate placeholder text',
+    icon: 'FileText',
+    category: 'generators',
+    route: '/tools/lorem'
+  },
+  {
+    id: 'json-converter',
+    name: 'JSON Converter',
+    description: 'Convert between JSON, YAML, CSV, XML, TOML',
+    icon: 'ArrowRightLeft',
+    category: 'encoding',
+    route: '/tools/json-converter'
+  },
+  {
+    id: 'text-sorter',
+    name: 'Text Sorter',
+    description: 'Sort lines alphabetically, numerically, by length',
+    icon: 'ArrowUpDown',
+    category: 'text',
+    route: '/tools/text-sorter'
+  },
+  {
+    id: 'dedupe',
+    name: 'Duplicate Remover',
+    description: 'Remove or find duplicate lines',
+    icon: 'Filter',
+    category: 'text',
+    route: '/tools/dedupe'
+  },
+  {
+    id: 'sql-formatter',
+    name: 'SQL Formatter',
+    description: 'Format and beautify SQL queries',
+    icon: 'Database',
+    category: 'text',
+    route: '/tools/sql-formatter'
+  },
+  {
+    id: 'html-formatter',
+    name: 'HTML Formatter',
+    description: 'Beautify and minify HTML',
+    icon: 'Code',
+    category: 'text',
+    route: '/tools/html-formatter'
+  },
+  {
+    id: 'css-formatter',
+    name: 'CSS Formatter',
+    description: 'Beautify and minify CSS',
+    icon: 'Paintbrush',
+    category: 'text',
+    route: '/tools/css-formatter'
   },
   {
     id: 'settings',

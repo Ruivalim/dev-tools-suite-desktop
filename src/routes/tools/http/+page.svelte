@@ -6,6 +6,7 @@
     Save, FolderOpen, Folder, FolderPlus, ChevronRight, Trash2
   } from 'lucide-svelte';
   import { cn } from '$lib/utils/cn';
+  import Select from '$lib/components/ui/Select.svelte';
 
   type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -615,16 +616,16 @@
 
         <div>
           <label for="save-folder" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Folder (optional)</label>
-          <select
-            id="save-folder"
-            bind:value={saveFolder}
-            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-accent-500 focus:border-transparent transition-all"
-          >
-            <option value="">No folder</option>
-            {#each folders as folder}
-              <option value={folder}>{folder}</option>
-            {/each}
-          </select>
+          <Select
+            value={saveFolder}
+            options={[
+              { value: '', label: 'No folder' },
+              ...folders.map(f => ({ value: f, label: f }))
+            ]}
+            onchange={(v) => saveFolder = v}
+            searchable={folders.length > 5}
+            class="w-full"
+          />
         </div>
 
         <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-sm">

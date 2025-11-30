@@ -5,8 +5,13 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-create",
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:webview:allow-create-webview-window",
     "opener:default",
     "store:default",
-    "autostart:default"
+    "autostart:default",
+    "notification:default"
   ]
 }

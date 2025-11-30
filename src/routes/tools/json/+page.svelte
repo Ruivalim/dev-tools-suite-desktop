@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Braces, Copy, Check, Trash2, Minimize2, Maximize2, AlertCircle } from 'lucide-svelte';
   import { cn } from '$lib/utils/cn';
+  import Select from '$lib/components/ui/Select.svelte';
 
   let input = $state('');
   let output = $state('');
@@ -114,15 +115,17 @@
     </button>
     <div class="flex items-center gap-2 ml-4">
       <span class="text-sm text-slate-500">Indent:</span>
-      <select
-        bind:value={indentSize}
-        onchange={formatJSON}
-        class="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-      >
-        <option value={2}>2 spaces</option>
-        <option value={4}>4 spaces</option>
-        <option value={1}>1 tab</option>
-      </select>
+      <Select
+        value={String(indentSize)}
+        options={[
+          { value: '2', label: '2 spaces' },
+          { value: '4', label: '4 spaces' },
+          { value: '1', label: '1 tab' }
+        ]}
+        onchange={(v) => { indentSize = Number(v); formatJSON(); }}
+        searchable={false}
+        class="w-28"
+      />
     </div>
     <button
       onclick={clear}

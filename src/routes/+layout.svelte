@@ -6,6 +6,7 @@
   import Header from '$lib/components/layout/Header.svelte';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
   import { themeStore } from '$lib/stores/theme.svelte';
+  import { stopwatch } from '$lib/stores/stopwatch.svelte';
 
   interface SystemStats {
     cpu_usage: number;
@@ -37,6 +38,9 @@
   onMount(() => {
     // Initialize theme on mount
     document.documentElement.classList.add(themeStore.value);
+
+    // Initialize stopwatch store (runs timer globally)
+    stopwatch.init();
 
     // Fetch stats immediately and then every 2 seconds
     fetchStats();

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "devtoolssuite",
+  "productName": "Dev Tools Suite",
   "version": "0.1.0",
   "identifier": "com.ruivalim.devtoolssuite",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "DevToolsSuite",
+        "title": "Dev Tools Suite",
         "width": 1000,
         "height": 700,
         "minWidth": 800,

@@ -29,6 +29,7 @@
     FolderOpen
   } from 'lucide-svelte';
   import { cn } from '$lib/utils/cn';
+  import Select from '$lib/components/ui/Select.svelte';
 
   interface PgConnection {
     id: string;
@@ -1230,15 +1231,16 @@
         {#if folders.length > 0}
           <div>
             <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Folder</label>
-            <select
-              bind:value={formFolder}
-              class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-            >
-              <option value="">No folder</option>
-              {#each getAllFolderPaths() as folderPath}
-                <option value={folderPath}>{folderPath}</option>
-              {/each}
-            </select>
+            <Select
+              value={formFolder}
+              options={[
+                { value: '', label: 'No folder' },
+                ...getAllFolderPaths().map(f => ({ value: f, label: f }))
+              ]}
+              onchange={(v) => formFolder = v}
+              searchable={getAllFolderPaths().length > 5}
+              class="w-full"
+            />
           </div>
         {/if}
       </div>

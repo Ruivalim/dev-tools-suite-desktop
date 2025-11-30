@@ -4,18 +4,13 @@
   import { Wrench, ArrowRight } from 'lucide-svelte';
 
   function getToolIcon(iconName: string) {
-    return (Icons as Record<string, typeof Wrench>)[iconName] || Wrench;
+    return (Icons as Record<string, any>)[iconName] || Wrench;
   }
 </script>
 
 <div class="max-w-4xl mx-auto">
   <div class="mb-8">
-    <h1 class="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-      Welcome to DevToolsSuite
-    </h1>
-    <p class="text-slate-600 dark:text-slate-400">
-      A collection of useful developer tools. Select a tool from the sidebar or quick access below.
-    </p>
+    <h1 class="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">Dev Tools Suite</h1>
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -30,9 +25,13 @@
             <Icon class="w-6 h-6 text-slate-600 dark:text-slate-400 group-hover:text-accent-500 transition-colors" />
           </div>
           <div class="flex-1">
-            <h2 class="font-semibold text-slate-900 dark:text-slate-100 group-hover:text-accent-500 transition-colors flex items-center gap-2">
+            <h2
+              class="font-semibold text-slate-900 dark:text-slate-100 group-hover:text-accent-500 transition-colors flex items-center gap-2"
+            >
               {tool.name}
-              <ArrowRight class="w-4 h-4 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+              <ArrowRight
+                class="w-4 h-4 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all"
+              />
             </h2>
             <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">
               {tool.description}
