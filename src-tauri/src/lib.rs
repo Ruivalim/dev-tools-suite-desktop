@@ -258,6 +258,147 @@ async fn pg_execute_query(connection: PgConnection, query: String) -> Result<Que
 }
 
 // ============================================================================
+// App Sync (PostgreSQL)
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SyncNote {
+    pub id: String,
+    pub title: String,
+    pub content: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub deleted: bool,
+}
+
+#[tauri::command]
+async fn sync_test_connection(connection_string: String) -> Result<String, String> {
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&connection_string)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    sqlx::query("SELECT 1")
+        .execute(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    pool.close().await;
+
+    Ok("Connection successful!".to_string())
+}
+
+#[tauri::command]
+async fn sync_init_schema(connection_string: String) -> Result<(), String> {
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&connection_string)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Create notes table if it doesn't exist
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS devtools_notes (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL DEFAULT '',
+            content TEXT NOT NULL DEFAULT '',
+            created_at BIGINT NOT NULL,
+            updated_at BIGINT NOT NULL,
+            deleted BOOLEAN NOT NULL DEFAULT FALSE
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    pool.close().await;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn sync_notes_pull(connection_string: String, since: i64) -> Result<Vec<SyncNote>, String> {
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&connection_string)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let rows = sqlx::query(
+        r#"
+        SELECT id, title, content, created_at, updated_at, deleted
+        FROM devtools_notes
+        WHERE updated_at > $1
+        ORDER BY updated_at ASC
+        "#,
+    )
+    .bind(since)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let notes: Vec<SyncNote> = rows
+        .iter()
+        .map(|row| SyncNote {
+            id: row.get("id"),
+            title: row.get("title"),
+            content: row.get("content"),
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+            deleted: row.get("deleted"),
+        })
+        .collect();
+
+    pool.close().await;
+
+    Ok(notes)
+}
+
+#[tauri::command]
+async fn sync_notes_push(connection_string: String, notes: Vec<SyncNote>) -> Result<(), String> {
+    if notes.is_empty() {
+        return Ok(());
+    }
+
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&connection_string)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    for note in notes {
+        sqlx::query(
+            r#"
+            INSERT INTO devtools_notes (id, title, content, created_at, updated_at, deleted)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (id) DO UPDATE SET
+                title = EXCLUDED.title,
+                content = EXCLUDED.content,
+                updated_at = EXCLUDED.updated_at,
+                deleted = EXCLUDED.deleted
+            WHERE devtools_notes.updated_at < EXCLUDED.updated_at
+            "#,
+        )
+        .bind(&note.id)
+        .bind(&note.title)
+        .bind(&note.content)
+        .bind(note.created_at)
+        .bind(note.updated_at)
+        .bind(note.deleted)
+        .execute(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    }
+
+    pool.close().await;
+
+    Ok(())
+}
+
+// ============================================================================
 // Stopwatch Tray & Alert
 // ============================================================================
 
@@ -634,7 +775,11 @@ pub fn run() {
             pg_get_tables,
             pg_execute_query,
             update_tray_title,
-            set_stopwatch_tray
+            set_stopwatch_tray,
+            sync_test_connection,
+            sync_init_schema,
+            sync_notes_pull,
+            sync_notes_push
         ])
         .setup(|app| {
             #[cfg(desktop)]

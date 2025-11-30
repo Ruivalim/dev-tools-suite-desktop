@@ -1,109 +1,265 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { Settings, Power, Monitor } from 'lucide-svelte';
-  import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
+	import { onMount } from 'svelte';
+	import { Settings, Power, Monitor, Database, CheckCircle, XCircle, Loader2, CloudOff, Cloud } from 'lucide-svelte';
+	import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
+	import { syncStore } from '$lib/stores/sync.svelte';
+	import { cn } from '$lib/utils/cn';
 
-  let autoStartEnabled = $state(false);
-  let loading = $state(true);
+	let autoStartEnabled = $state(false);
+	let loading = $state(true);
 
-  onMount(async () => {
-    try {
-      autoStartEnabled = await isEnabled();
-    } catch (e) {
-      console.error('Failed to check autostart status:', e);
-    }
-    loading = false;
-  });
+	// Sync form state
+	let syncConnectionString = $state('');
+	let testingConnection = $state(false);
+	let testResult = $state<{ success: boolean; message: string } | null>(null);
+	let savingSync = $state(false);
 
-  async function toggleAutoStart() {
-    try {
-      if (autoStartEnabled) {
-        await disable();
-        autoStartEnabled = false;
-      } else {
-        await enable();
-        autoStartEnabled = true;
-      }
-    } catch (e) {
-      console.error('Failed to toggle autostart:', e);
-    }
-  }
+	onMount(async () => {
+		try {
+			autoStartEnabled = await isEnabled();
+		} catch (e) {
+			console.error('Failed to check autostart status:', e);
+		}
+		loading = false;
+
+		// Initialize sync store and load current config
+		await syncStore.init();
+		if (syncStore.config.connectionString) {
+			syncConnectionString = syncStore.config.connectionString;
+		}
+	});
+
+	async function toggleAutoStart() {
+		try {
+			if (autoStartEnabled) {
+				await disable();
+				autoStartEnabled = false;
+			} else {
+				await enable();
+				autoStartEnabled = true;
+			}
+		} catch (e) {
+			console.error('Failed to toggle autostart:', e);
+		}
+	}
+
+	async function testSyncConnection() {
+		if (!syncConnectionString.trim()) return;
+
+		testingConnection = true;
+		testResult = null;
+
+		testResult = await syncStore.testConnection(syncConnectionString);
+		testingConnection = false;
+	}
+
+	async function enableSync() {
+		if (!syncConnectionString.trim()) return;
+
+		savingSync = true;
+		const result = await syncStore.enable(syncConnectionString);
+		savingSync = false;
+
+		if (result.success) {
+			testResult = { success: true, message: 'Sync enabled! Notes will sync automatically.' };
+		} else {
+			testResult = result;
+		}
+	}
+
+	async function disableSync() {
+		await syncStore.disable();
+		syncConnectionString = '';
+		testResult = null;
+	}
+
+	function formatLastSync(timestamp: number): string {
+		if (!timestamp) return 'Never';
+		const date = new Date(timestamp);
+		return date.toLocaleString('pt-BR');
+	}
 </script>
 
-<div class="max-w-2xl mx-auto">
-  <!-- Header -->
-  <div class="mb-8 flex items-center gap-3">
-    <div class="p-2 rounded-lg bg-accent-500/10">
-      <Settings class="w-6 h-6 text-accent-500" />
-    </div>
-    <div>
-      <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">Settings</h1>
-      <p class="text-sm text-slate-600 dark:text-slate-400">Configure your DevToolsSuite preferences</p>
-    </div>
-  </div>
+<div class="mx-auto max-w-2xl">
+	<!-- Header -->
+	<div class="mb-8 flex items-center gap-3">
+		<div class="rounded-lg bg-accent-500/10 p-2">
+			<Settings class="h-6 w-6 text-accent-500" />
+		</div>
+		<div>
+			<h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">Settings</h1>
+			<p class="text-sm text-slate-600 dark:text-slate-400">Configure your DevToolsSuite preferences</p>
+		</div>
+	</div>
 
-  <!-- Settings Sections -->
-  <div class="space-y-6">
-    <!-- Startup Section -->
-    <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
-      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
-        <h2 class="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <Power class="w-4 h-4" />
-          Startup
-        </h2>
-      </div>
-      <div class="p-5">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="font-medium text-slate-900 dark:text-slate-100">Launch at startup</p>
-            <p class="text-sm text-slate-500 dark:text-slate-400">
-              Automatically start DevToolsSuite when you log in
-            </p>
-          </div>
-          <button
-            onclick={toggleAutoStart}
-            disabled={loading}
-            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50"
-            class:bg-accent-500={autoStartEnabled}
-            class:bg-slate-300={!autoStartEnabled}
-            class:dark:bg-slate-600={!autoStartEnabled}
-          >
-            <span
-              class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-              class:translate-x-6={autoStartEnabled}
-              class:translate-x-1={!autoStartEnabled}
-            ></span>
-          </button>
-        </div>
-      </div>
-    </div>
+	<!-- Settings Sections -->
+	<div class="space-y-6">
+		<!-- Startup Section -->
+		<div class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+			<div class="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+				<h2 class="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
+					<Power class="h-4 w-4" />
+					Startup
+				</h2>
+			</div>
+			<div class="p-5">
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="font-medium text-slate-900 dark:text-slate-100">Launch at startup</p>
+						<p class="text-sm text-slate-500 dark:text-slate-400">Automatically start DevToolsSuite when you log in</p>
+					</div>
+					<button
+						onclick={toggleAutoStart}
+						disabled={loading}
+						class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:ring-2 focus:ring-accent-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50 dark:focus:ring-offset-slate-900"
+						class:bg-accent-500={autoStartEnabled}
+						class:bg-slate-300={!autoStartEnabled}
+						class:dark:bg-slate-600={!autoStartEnabled}
+					>
+						<span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform" class:translate-x-6={autoStartEnabled} class:translate-x-1={!autoStartEnabled}></span>
+					</button>
+				</div>
+			</div>
+		</div>
 
-    <!-- Appearance Section -->
-    <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
-      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
-        <h2 class="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <Monitor class="w-4 h-4" />
-          Appearance
-        </h2>
-      </div>
-      <div class="p-5">
-        <p class="text-sm text-slate-500 dark:text-slate-400">
-          Toggle between dark and light mode using the button in the header.
-        </p>
-      </div>
-    </div>
+		<!-- Sync Section -->
+		<div class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+			<div class="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+				<h2 class="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
+					<Database class="h-4 w-4" />
+					Data Sync
+					{#if syncStore.config.enabled}
+						<span class="ml-auto flex items-center gap-1 text-xs font-normal text-green-600 dark:text-green-400">
+							<Cloud class="h-3 w-3" />
+							Connected
+						</span>
+					{:else}
+						<span class="ml-auto flex items-center gap-1 text-xs font-normal text-slate-400">
+							<CloudOff class="h-3 w-3" />
+							Local only
+						</span>
+					{/if}
+				</h2>
+			</div>
+			<div class="space-y-4 p-5">
+				<p class="text-sm text-slate-500 dark:text-slate-400">Sync your data (Notes, etc.) to a PostgreSQL database. This is optional - your data is always saved locally first.</p>
 
-    <!-- About Section -->
-    <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
-      <div class="p-5">
-        <div class="text-center">
-          <div class="w-12 h-12 mx-auto rounded-xl bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center mb-3">
-            <span class="text-white text-xl font-bold">D</span>
-          </div>
-          <h3 class="font-semibold text-slate-900 dark:text-slate-100">DevToolsSuite</h3>
-          <p class="text-sm text-slate-500 dark:text-slate-400">Version 0.1.0</p>
-        </div>
-      </div>
-    </div>
-  </div>
+				{#if syncStore.config.enabled}
+					<!-- Sync is enabled - show status -->
+					<div class="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
+						<div class="flex items-start gap-3">
+							<CheckCircle class="mt-0.5 h-5 w-5 flex-shrink-0 text-green-500" />
+							<div class="min-w-0 flex-1">
+								<p class="font-medium text-green-800 dark:text-green-200">Sync enabled</p>
+								<p class="mt-1 truncate text-sm text-green-600 dark:text-green-400">
+									{syncStore.config.connectionString.replace(/:[^:@]+@/, ':***@')}
+								</p>
+								<p class="mt-2 text-xs text-green-600 dark:text-green-400">
+									Last sync: {formatLastSync(syncStore.config.lastSync)}
+								</p>
+							</div>
+						</div>
+					</div>
+
+					<button
+						onclick={disableSync}
+						class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+					>
+						Disable Sync
+					</button>
+				{:else}
+					<!-- Sync not enabled - show setup form -->
+					<div>
+						<label for="sync-connection" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"> PostgreSQL Connection String </label>
+						<input
+							id="sync-connection"
+							type="text"
+							bind:value={syncConnectionString}
+							placeholder="postgres://user:password@host:5432/database"
+							class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-900 placeholder-slate-400 transition-all focus:border-transparent focus:ring-2 focus:ring-accent-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+						/>
+					</div>
+
+					{#if testResult}
+						<div
+							class={cn(
+								'flex items-start gap-2 rounded-lg p-3',
+								testResult.success ? 'border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20' : 'border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
+							)}
+						>
+							{#if testResult.success}
+								<CheckCircle class="mt-0.5 h-4 w-4 flex-shrink-0 text-green-500" />
+								<span class="text-sm text-green-700 dark:text-green-300">{testResult.message}</span>
+							{:else}
+								<XCircle class="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
+								<span class="text-sm text-red-700 dark:text-red-300">{testResult.message}</span>
+							{/if}
+						</div>
+					{/if}
+
+					<div class="flex gap-2">
+						<button
+							onclick={testSyncConnection}
+							disabled={!syncConnectionString.trim() || testingConnection}
+							class={cn(
+								'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-all',
+								syncConnectionString.trim() && !testingConnection
+									? 'border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800'
+									: 'cursor-not-allowed border-slate-200 text-slate-400 dark:border-slate-800'
+							)}
+						>
+							{#if testingConnection}
+								<Loader2 class="h-4 w-4 animate-spin" />
+								Testing...
+							{:else}
+								Test Connection
+							{/if}
+						</button>
+
+						<button
+							onclick={enableSync}
+							disabled={!syncConnectionString.trim() || savingSync}
+							class={cn(
+								'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all',
+								syncConnectionString.trim() && !savingSync ? 'bg-accent-500 text-white hover:bg-accent-600' : 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800'
+							)}
+						>
+							{#if savingSync}
+								<Loader2 class="h-4 w-4 animate-spin" />
+								Enabling...
+							{:else}
+								Enable Sync
+							{/if}
+						</button>
+					</div>
+				{/if}
+			</div>
+		</div>
+
+		<!-- Appearance Section -->
+		<div class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+			<div class="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+				<h2 class="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
+					<Monitor class="h-4 w-4" />
+					Appearance
+				</h2>
+			</div>
+			<div class="p-5">
+				<p class="text-sm text-slate-500 dark:text-slate-400">Toggle between dark and light mode using the button in the header.</p>
+			</div>
+		</div>
+
+		<!-- About Section -->
+		<div class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+			<div class="p-5">
+				<div class="text-center">
+					<div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-accent-400 to-accent-600">
+						<span class="text-xl font-bold text-white">D</span>
+					</div>
+					<h3 class="font-semibold text-slate-900 dark:text-slate-100">DevToolsSuite</h3>
+					<p class="text-sm text-slate-500 dark:text-slate-400">Version 0.1.0</p>
+				</div>
+			</div>
+		</div>
+	</div>
 </div>
