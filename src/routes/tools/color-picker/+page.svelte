@@ -2,11 +2,18 @@
 	import { Pipette, Copy, Check, Plus, Trash2 } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { Store } from '@tauri-apps/plugin-store';
+	import { invoke } from '@tauri-apps/api/core';
 
 	interface SavedColor {
 		hex: string;
 		name?: string;
 		savedAt: number;
+	}
+
+	interface ScreenCapture {
+		image_data: string;
+		width: number;
+		height: number;
 	}
 
 	let currentColor = $state('#3b82f6');
@@ -16,14 +23,18 @@
 	let copiedField = $state<string | null>(null);
 	let savedColors = $state<SavedColor[]>([]);
 	let store: Store | null = null;
-	let eyedropperSupported = $state(false);
+
+	// Screen picker state
+	let showScreenPicker = $state(false);
+	let screenshotData = $state<ScreenCapture | null>(null);
+	let screenshotDataUrl = $state<string | null>(null);
+	let cursorPos = $state({ x: 0, y: 0 });
+	let zoomCanvas: HTMLCanvasElement | null = null;
+	let screenshotImg: HTMLImageElement | null = null;
 
 	const quickColors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899', '#000000', '#374151', '#6b7280', '#9ca3af', '#d1d5db', '#e5e7eb', '#f3f4f6', '#ffffff'];
 
 	onMount(async () => {
-		// Check if EyeDropper API is supported
-		eyedropperSupported = 'EyeDropper' in window;
-
 		// Load saved colors
 		store = await Store.load('color-picker.json');
 		const saved = await store.get<SavedColor[]>('colors');
@@ -119,22 +130,96 @@
 	}
 
 	async function pickColor() {
-		if (!eyedropperSupported) return;
+		try {
+			const capture = await invoke<ScreenCapture>('capture_all_screens');
+			screenshotData = capture;
+			screenshotDataUrl = `data:image/png;base64,${capture.image_data}`;
+			showScreenPicker = true;
+		} catch (e) {
+			console.error('Screenshot capture failed:', e);
+		}
+	}
+
+	function handleScreenshotMove(e: MouseEvent) {
+		if (!screenshotImg) return;
+
+		const rect = screenshotImg.getBoundingClientRect();
+		cursorPos = { x: e.clientX, y: e.clientY };
+
+		// Calculate image coordinates
+		const scaleX = screenshotImg.naturalWidth / rect.width;
+		const scaleY = screenshotImg.naturalHeight / rect.height;
+		const imgX = Math.round((e.clientX - rect.left) * scaleX);
+		const imgY = Math.round((e.clientY - rect.top) * scaleY);
+
+		// Draw zoomed preview using canvas
+		if (zoomCanvas && screenshotImg.complete) {
+			const ctx = zoomCanvas.getContext('2d');
+			if (ctx) {
+				const zoomLevel = 8;
+				const previewSize = 120;
+				const sourceSize = previewSize / zoomLevel;
+
+				ctx.imageSmoothingEnabled = false;
+				ctx.clearRect(0, 0, previewSize, previewSize);
+				ctx.drawImage(screenshotImg, imgX - sourceSize / 2, imgY - sourceSize / 2, sourceSize, sourceSize, 0, 0, previewSize, previewSize);
+
+				// Draw crosshair
+				ctx.strokeStyle = '#fff';
+				ctx.lineWidth = 1;
+				ctx.beginPath();
+				ctx.moveTo(previewSize / 2, 0);
+				ctx.lineTo(previewSize / 2, previewSize);
+				ctx.moveTo(0, previewSize / 2);
+				ctx.lineTo(previewSize, previewSize / 2);
+				ctx.stroke();
+
+				// Draw center pixel outline
+				ctx.strokeStyle = '#000';
+				ctx.strokeRect(previewSize / 2 - zoomLevel / 2, previewSize / 2 - zoomLevel / 2, zoomLevel, zoomLevel);
+			}
+		}
+	}
+
+	async function handleScreenshotClick(e: MouseEvent) {
+		if (!screenshotData || !screenshotImg) return;
+
+		const rect = screenshotImg.getBoundingClientRect();
+		const scaleX = screenshotImg.naturalWidth / rect.width;
+		const scaleY = screenshotImg.naturalHeight / rect.height;
+		const x = Math.round((e.clientX - rect.left) * scaleX);
+		const y = Math.round((e.clientY - rect.top) * scaleY);
 
 		try {
-			// @ts-ignore - EyeDropper API
-			const eyeDropper = new EyeDropper();
-			const result = await eyeDropper.open();
-			const hsl = hexToHsl(result.sRGBHex);
+			const hexColor = await invoke<string>('get_pixel_color', {
+				imageData: screenshotData.image_data,
+				x,
+				y
+			});
+
+			const hsl = hexToHsl(hexColor);
 			if (hsl) {
 				hue = hsl.h;
 				saturation = hsl.s;
 				lightness = hsl.l;
-				currentColor = result.sRGBHex;
+				currentColor = hexColor;
 			}
 		} catch (e) {
-			// User cancelled or error
-			console.error('EyeDropper error:', e);
+			console.error('Color pick failed:', e);
+		}
+
+		closeScreenPicker();
+	}
+
+	function closeScreenPicker() {
+		showScreenPicker = false;
+		screenshotData = null;
+		screenshotDataUrl = null;
+	}
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') {
+			closeScreenPicker();
 		}
 	}
 
@@ -205,12 +290,10 @@
 			</div>
 		</div>
 
-		{#if eyedropperSupported}
-			<button onclick={pickColor} class="flex items-center gap-2 rounded-lg bg-accent-500 px-4 py-2 font-medium text-white transition-colors hover:bg-accent-600">
-				<Pipette class="h-4 w-4" />
-				Pick from Screen
-			</button>
-		{/if}
+		<button onclick={pickColor} class="flex items-center gap-2 rounded-lg bg-accent-500 px-4 py-2 font-medium text-white transition-colors hover:bg-accent-600">
+			<Pipette class="h-4 w-4" />
+			Pick from Screen
+		</button>
 	</div>
 
 	<div class="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-auto lg:grid-cols-2">
@@ -404,6 +487,30 @@
 		</div>
 	</div>
 </div>
+
+<!-- Screen Picker Modal -->
+{#if showScreenPicker}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<div class="fixed inset-0 z-50 flex cursor-crosshair items-center justify-center overflow-hidden bg-black" role="dialog" aria-modal="true" onkeydown={handleKeydown} tabindex="-1">
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<img
+			bind:this={screenshotImg}
+			src={screenshotDataUrl}
+			alt="Screenshot - click to pick color"
+			style="width: 100vw; height: 100vh; object-fit: contain;"
+			onclick={handleScreenshotClick}
+			onmousemove={handleScreenshotMove}
+		/>
+
+		<!-- Zoom Preview -->
+		<div class="pointer-events-none fixed overflow-hidden rounded-lg border-2 border-white shadow-2xl" style="left: {cursorPos.x + 20}px; top: {cursorPos.y + 20}px;">
+			<canvas bind:this={zoomCanvas} width="120" height="120" class="block bg-slate-800" />
+		</div>
+
+		<!-- ESC hint -->
+		<div class="fixed bottom-4 left-1/2 -translate-x-1/2 rounded-lg bg-black/70 px-4 py-2 text-sm text-white">Press ESC to cancel</div>
+	</div>
+{/if}
 
 <style>
 	input[type='range']::-webkit-slider-thumb {

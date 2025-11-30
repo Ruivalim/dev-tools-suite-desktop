@@ -399,6 +399,73 @@ async fn sync_notes_push(connection_string: String, notes: Vec<SyncNote>) -> Res
 }
 
 // ============================================================================
+// Color Picker (Screen Capture)
+// ============================================================================
+
+#[derive(Serialize)]
+pub struct ScreenCapture {
+    pub image_data: String,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[tauri::command]
+fn capture_all_screens() -> Result<ScreenCapture, String> {
+    use xcap::Monitor;
+
+    // Get primary monitor
+    let monitors = Monitor::all().map_err(|e| e.to_string())?;
+
+    if monitors.is_empty() {
+        return Err("No monitors found".to_string());
+    }
+
+    // Find primary monitor (usually the first one, or the one at 0,0)
+    let primary = monitors
+        .into_iter()
+        .find(|m| m.is_primary().unwrap_or(false))
+        .or_else(|| Monitor::all().ok()?.into_iter().next())
+        .ok_or("No primary monitor found")?;
+
+    // Capture primary monitor
+    let capture = primary.capture_image().map_err(|e| e.to_string())?;
+
+    let width = capture.width();
+    let height = capture.height();
+
+    // Encode to PNG base64
+    let mut buffer = Vec::new();
+    capture
+        .write_to(
+            &mut std::io::Cursor::new(&mut buffer),
+            image::ImageFormat::Png,
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(ScreenCapture {
+        image_data: BASE64.encode(&buffer),
+        width,
+        height,
+    })
+}
+
+#[tauri::command]
+fn get_pixel_color(image_data: String, x: u32, y: u32) -> Result<String, String> {
+    let bytes = BASE64
+        .decode(image_data.as_bytes())
+        .map_err(|e| e.to_string())?;
+    let img = image::load_from_memory(&bytes).map_err(|e| e.to_string())?;
+    let rgba = img.to_rgba8();
+
+    if x >= rgba.width() || y >= rgba.height() {
+        return Err("Coordinates out of bounds".to_string());
+    }
+
+    let pixel = rgba.get_pixel(x, y);
+    Ok(format!("#{:02x}{:02x}{:02x}", pixel[0], pixel[1], pixel[2]))
+}
+
+// ============================================================================
 // Stopwatch Tray & Alert
 // ============================================================================
 
@@ -779,7 +846,9 @@ pub fn run() {
             sync_test_connection,
             sync_init_schema,
             sync_notes_pull,
-            sync_notes_push
+            sync_notes_push,
+            capture_all_screens,
+            get_pixel_color
         ])
         .setup(|app| {
             #[cfg(desktop)]
