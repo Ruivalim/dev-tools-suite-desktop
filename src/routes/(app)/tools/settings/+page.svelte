@@ -155,9 +155,7 @@
 					<div class="flex items-center justify-between">
 						<div>
 							<p class="font-medium text-slate-900 dark:text-slate-100">Sync to iCloud Drive</p>
-							<p class="text-sm text-slate-500 dark:text-slate-400">
-								Automatically sync notes, bookmarks, and favorites across your Apple devices
-							</p>
+							<p class="text-sm text-slate-500 dark:text-slate-400">Automatically sync notes, bookmarks, and favorites across your Apple devices</p>
 							{#if icloudStore.config.enabled && icloudStore.config.lastSync}
 								<p class="mt-1 text-xs text-slate-400">
 									Last sync: {formatLastSync(icloudStore.config.lastSync)}
@@ -173,7 +171,8 @@
 							class:bg-slate-300={!icloudStore.config.enabled}
 							class:dark:bg-slate-600={!icloudStore.config.enabled}
 						>
-							<span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform" class:translate-x-6={icloudStore.config.enabled} class:translate-x-1={!icloudStore.config.enabled}></span>
+							<span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform" class:translate-x-6={icloudStore.config.enabled} class:translate-x-1={!icloudStore.config.enabled}
+							></span>
 						</button>
 					</div>
 				</div>

@@ -21,15 +21,13 @@ if [ "$CURRENT_VERSION" = "$STAGED_VERSION" ]; then
 
   # Try to read from /dev/tty (works even when stdin is redirected)
   if [ -e /dev/tty ]; then
-    exec < /dev/tty
-
-    read -p "Would you like to update the version? [y/N] " -n 1 -r
+    read -p "Would you like to update the version? [y/N] " -n 1 -r < /dev/tty
     echo ""
 
     if [[ $REPLY =~ ^[Yy]$ ]]; then
       echo ""
       echo "Current version: $CURRENT_VERSION"
-      read -p "Enter new version: " NEW_VERSION
+      read -p "Enter new version: " NEW_VERSION < /dev/tty
 
       if [ -n "$NEW_VERSION" ]; then
         # Update the version in package.json
@@ -46,7 +44,7 @@ if [ "$CURRENT_VERSION" = "$STAGED_VERSION" ]; then
         exit 1
       fi
     else
-      read -p "Continue without updating version? [y/N] " -n 1 -r
+      read -p "Continue without updating version? [y/N] " -n 1 -r < /dev/tty
       echo ""
       if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         echo "Commit aborted."

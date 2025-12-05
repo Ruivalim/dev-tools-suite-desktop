@@ -16,9 +16,6 @@ let syncing = $state(false);
 let store: Store | null = null;
 let initialized = false;
 
-// Files to sync
-const SYNC_FILES = ['notes.json', 'bookmarks.json', 'favorites.json'];
-
 async function loadConfig() {
 	if (initialized) return;
 	initialized = true;
@@ -80,11 +77,7 @@ export const icloudStore = {
 	 * Sync a specific file to iCloud
 	 * Merges local and iCloud data, keeping the most recent items
 	 */
-	async syncFile<T extends { id: string; updatedAt?: number; createdAt?: number }>(
-		filename: string,
-		localData: T[],
-		key: string
-	): Promise<T[]> {
+	async syncFile<T extends { id: string; updatedAt?: number; createdAt?: number }>(filename: string, localData: T[], key: string): Promise<T[]> {
 		if (!config.enabled || !available) {
 			return localData;
 		}
@@ -178,37 +171,34 @@ export const icloudStore = {
 /**
  * Merge two arrays of items, keeping the most recent version of each item
  */
-function mergeData<T extends { id: string; updatedAt?: number; createdAt?: number }>(
-	local: T[],
-	remote: T[]
-): T[] {
-	const merged = new Map<string, T>();
+function mergeData<T extends { id: string; updatedAt?: number; createdAt?: number }>(local: T[], remote: T[]): T[] {
+	const mergedRecord: Record<string, T> = {};
 
 	// Add all local items
 	for (const item of local) {
-		merged.set(item.id, item);
+		mergedRecord[item.id] = item;
 	}
 
 	// Merge remote items
 	for (const remoteItem of remote) {
-		const localItem = merged.get(remoteItem.id);
+		const localItem = mergedRecord[remoteItem.id];
 
 		if (!localItem) {
 			// Item only exists in remote
-			merged.set(remoteItem.id, remoteItem);
+			mergedRecord[remoteItem.id] = remoteItem;
 		} else {
 			// Item exists in both - keep the most recent
 			const localTime = localItem.updatedAt || localItem.createdAt || 0;
 			const remoteTime = remoteItem.updatedAt || remoteItem.createdAt || 0;
 
 			if (remoteTime > localTime) {
-				merged.set(remoteItem.id, remoteItem);
+				mergedRecord[remoteItem.id] = remoteItem;
 			}
 		}
 	}
 
 	// Sort by updatedAt/createdAt descending
-	return Array.from(merged.values()).sort((a, b) => {
+	return Object.values(mergedRecord).sort((a, b) => {
 		const aTime = a.updatedAt || a.createdAt || 0;
 		const bTime = b.updatedAt || b.createdAt || 0;
 		return bTime - aTime;

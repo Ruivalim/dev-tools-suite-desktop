@@ -7,6 +7,9 @@
 	import CommandPalette from '$lib/components/CommandPalette.svelte';
 	import { themeStore } from '$lib/stores/theme.svelte';
 	import { stopwatch } from '$lib/stores/stopwatch.svelte';
+	import { icloudStore } from '$lib/stores/icloud.svelte';
+	import { bookmarksStore } from '$lib/stores/bookmarks.svelte';
+	import { favoritesStore } from '$lib/stores/favorites.svelte';
 
 	interface SystemStats {
 		cpu_usage: number;
@@ -23,6 +26,24 @@
 	let diskUsage = $state('0%');
 
 	let statsInterval: ReturnType<typeof setInterval> | null = null;
+	let syncInterval: ReturnType<typeof setInterval> | null = null;
+
+	const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+	async function syncAll() {
+		if (!icloudStore.enabled) return;
+		try {
+			await Promise.all([bookmarksStore.sync(), favoritesStore.sync()]);
+		} catch (e) {
+			console.error('Failed to sync with iCloud:', e);
+		}
+	}
+
+	function handleVisibilityChange() {
+		if (document.visibilityState === 'visible') {
+			syncAll();
+		}
+	}
 
 	async function fetchStats() {
 		try {
@@ -35,7 +56,7 @@
 		}
 	}
 
-	onMount(() => {
+	onMount(async () => {
 		// Initialize theme on mount
 		document.documentElement.classList.add(themeStore.value);
 
@@ -45,12 +66,27 @@
 		// Fetch stats immediately and then every 2 seconds
 		fetchStats();
 		statsInterval = setInterval(fetchStats, 2000);
+
+		// Initialize iCloud and sync stores
+		await icloudStore.init();
+		await bookmarksStore.init();
+		await favoritesStore.init();
+
+		// Set up periodic sync (every 5 minutes)
+		syncInterval = setInterval(syncAll, SYNC_INTERVAL_MS);
+
+		// Sync when app regains focus
+		document.addEventListener('visibilitychange', handleVisibilityChange);
 	});
 
 	onDestroy(() => {
 		if (statsInterval) {
 			clearInterval(statsInterval);
 		}
+		if (syncInterval) {
+			clearInterval(syncInterval);
+		}
+		document.removeEventListener('visibilitychange', handleVisibilityChange);
 	});
 </script>
 

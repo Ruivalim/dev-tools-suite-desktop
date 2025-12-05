@@ -19,8 +19,8 @@ async function loadFavorites() {
 	if (icloudStore.enabled) {
 		const icloudFavorites = await icloudStore.readFromICloud<string>('favorites.json', 'favorites');
 		if (icloudFavorites) {
-			// Merge: union of both sets
-			const merged = [...new Set([...favorites, ...icloudFavorites])];
+			// Merge: union of both arrays (deduplicated)
+			const merged = [...favorites, ...icloudFavorites].filter((id, index, arr) => arr.indexOf(id) === index);
 			favorites = merged;
 			await saveFavoritesLocal();
 			await icloudStore.writeToICloud('favorites.json', favorites, 'favorites');
@@ -76,5 +76,17 @@ export const favoritesStore = {
 	async remove(toolId: string) {
 		favorites = favorites.filter((id) => id !== toolId);
 		await saveFavorites();
+	},
+
+	async sync() {
+		if (!icloudStore.enabled) return;
+		const icloudFavorites = await icloudStore.readFromICloud<string>('favorites.json', 'favorites');
+		if (icloudFavorites) {
+			// Merge: union of both arrays (deduplicated)
+			const merged = [...favorites, ...icloudFavorites].filter((id, index, arr) => arr.indexOf(id) === index);
+			favorites = merged;
+			await saveFavoritesLocal();
+			await icloudStore.writeToICloud('favorites.json', favorites, 'favorites');
+		}
 	}
 };

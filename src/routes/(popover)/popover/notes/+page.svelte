@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { Plus, Check, Copy, X, Trash2 } from 'lucide-svelte';
 	import { cn } from '$lib/utils/cn';
 	import { Store } from '@tauri-apps/plugin-store';
@@ -23,6 +23,18 @@
 
 	const activeNotes = $derived(notes.filter((n) => !n.deleted).slice(0, 10));
 
+	async function syncNotes() {
+		if (!icloudStore.enabled || !store) return;
+		notes = await icloudStore.syncFile('notes.json', notes, 'notes');
+		await saveNotesLocal();
+	}
+
+	async function handleVisibilityChange() {
+		if (document.visibilityState === 'visible') {
+			await syncNotes();
+		}
+	}
+
 	onMount(async () => {
 		store = await Store.load('notes.json');
 		const saved = await store.get<Note[]>('notes');
@@ -36,6 +48,13 @@
 			notes = await icloudStore.syncFile('notes.json', notes, 'notes');
 			await saveNotesLocal();
 		}
+
+		// Sync when popover becomes visible
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+	});
+
+	onDestroy(() => {
+		document.removeEventListener('visibilitychange', handleVisibilityChange);
 	});
 
 	async function saveNotesLocal() {

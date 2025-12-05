@@ -101,5 +101,11 @@ export const bookmarksStore = {
 	search(query: string): Bookmark[] {
 		const q = query.toLowerCase();
 		return bookmarks.filter((b) => b.title.toLowerCase().includes(q) || b.url.toLowerCase().includes(q) || b.description?.toLowerCase().includes(q) || b.tags.some((t) => t.toLowerCase().includes(q)));
+	},
+
+	async sync() {
+		if (!icloudStore.enabled) return;
+		bookmarks = await icloudStore.syncFile('bookmarks.json', bookmarks, 'bookmarks');
+		await saveBookmarksLocal();
 	}
 };
