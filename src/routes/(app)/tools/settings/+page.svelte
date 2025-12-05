@@ -3,10 +3,12 @@
 	import { Settings, Power, Monitor, Database, CheckCircle, XCircle, Loader2, CloudOff, Cloud } from 'lucide-svelte';
 	import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 	import { syncStore } from '$lib/stores/sync.svelte';
+	import { icloudStore } from '$lib/stores/icloud.svelte';
 	import { cn } from '$lib/utils/cn';
 
 	let autoStartEnabled = $state(false);
 	let loading = $state(true);
+	let togglingICloud = $state(false);
 
 	// Sync form state
 	let syncConnectionString = $state('');
@@ -22,12 +24,24 @@
 		}
 		loading = false;
 
-		// Initialize sync store and load current config
+		// Initialize sync stores
 		await syncStore.init();
+		await icloudStore.init();
+
 		if (syncStore.config.connectionString) {
 			syncConnectionString = syncStore.config.connectionString;
 		}
 	});
+
+	async function toggleICloudSync() {
+		togglingICloud = true;
+		try {
+			await icloudStore.setEnabled(!icloudStore.config.enabled);
+		} catch (e) {
+			console.error('Failed to toggle iCloud sync:', e);
+		}
+		togglingICloud = false;
+	}
 
 	async function toggleAutoStart() {
 		try {
@@ -122,12 +136,56 @@
 			</div>
 		</div>
 
-		<!-- Sync Section -->
+		<!-- iCloud Sync Section -->
+		{#if icloudStore.available}
+			<div class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+				<div class="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+					<h2 class="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
+						<Cloud class="h-4 w-4" />
+						iCloud Sync
+						{#if icloudStore.config.enabled}
+							<span class="ml-auto flex items-center gap-1 text-xs font-normal text-green-600 dark:text-green-400">
+								<CheckCircle class="h-3 w-3" />
+								Enabled
+							</span>
+						{/if}
+					</h2>
+				</div>
+				<div class="p-5">
+					<div class="flex items-center justify-between">
+						<div>
+							<p class="font-medium text-slate-900 dark:text-slate-100">Sync to iCloud Drive</p>
+							<p class="text-sm text-slate-500 dark:text-slate-400">
+								Automatically sync notes, bookmarks, and favorites across your Apple devices
+							</p>
+							{#if icloudStore.config.enabled && icloudStore.config.lastSync}
+								<p class="mt-1 text-xs text-slate-400">
+									Last sync: {formatLastSync(icloudStore.config.lastSync)}
+								</p>
+							{/if}
+						</div>
+						<button
+							onclick={toggleICloudSync}
+							disabled={togglingICloud}
+							aria-label="Toggle iCloud sync"
+							class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:ring-2 focus:ring-accent-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50 dark:focus:ring-offset-slate-900"
+							class:bg-accent-500={icloudStore.config.enabled}
+							class:bg-slate-300={!icloudStore.config.enabled}
+							class:dark:bg-slate-600={!icloudStore.config.enabled}
+						>
+							<span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform" class:translate-x-6={icloudStore.config.enabled} class:translate-x-1={!icloudStore.config.enabled}></span>
+						</button>
+					</div>
+				</div>
+			</div>
+		{/if}
+
+		<!-- PostgreSQL Sync Section -->
 		<div class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
 			<div class="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
 				<h2 class="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
 					<Database class="h-4 w-4" />
-					Data Sync
+					PostgreSQL Sync
 					{#if syncStore.config.enabled}
 						<span class="ml-auto flex items-center gap-1 text-xs font-normal text-green-600 dark:text-green-400">
 							<Cloud class="h-3 w-3" />

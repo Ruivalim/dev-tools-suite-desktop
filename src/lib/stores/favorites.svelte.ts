@@ -1,4 +1,5 @@
 import { Store } from '@tauri-apps/plugin-store';
+import { icloudStore } from './icloud.svelte';
 
 let favorites = $state<string[]>([]);
 let store: Store | null = null;
@@ -13,12 +14,33 @@ async function loadFavorites() {
 	if (saved) {
 		favorites = saved;
 	}
+
+	// Sync with iCloud if enabled
+	if (icloudStore.enabled) {
+		const icloudFavorites = await icloudStore.readFromICloud<string>('favorites.json', 'favorites');
+		if (icloudFavorites) {
+			// Merge: union of both sets
+			const merged = [...new Set([...favorites, ...icloudFavorites])];
+			favorites = merged;
+			await saveFavoritesLocal();
+			await icloudStore.writeToICloud('favorites.json', favorites, 'favorites');
+		}
+	}
 }
 
-async function saveFavorites() {
+async function saveFavoritesLocal() {
 	if (store) {
 		await store.set('favorites', favorites);
 		await store.save();
+	}
+}
+
+async function saveFavorites() {
+	await saveFavoritesLocal();
+
+	// Sync to iCloud if enabled
+	if (icloudStore.enabled) {
+		await icloudStore.writeToICloud('favorites.json', favorites, 'favorites');
 	}
 }
 

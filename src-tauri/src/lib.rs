@@ -15,6 +15,8 @@ use uuid::Uuid;
 #[cfg(target_os = "macos")]
 use cocoa::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSImage};
 #[cfg(target_os = "macos")]
+use tauri_plugin_nspopover::{AppExt as PopoverAppExt, WindowExt as PopoverWindowExt, ToPopoverOptions};
+#[cfg(target_os = "macos")]
 use cocoa::base::nil;
 #[cfg(target_os = "macos")]
 use cocoa::foundation::NSData;
@@ -466,6 +468,111 @@ fn get_pixel_color(image_data: String, x: u32, y: u32) -> Result<String, String>
 }
 
 // ============================================================================
+// iCloud Sync
+// ============================================================================
+
+/// Get the iCloud Drive path for this app
+/// Returns: ~/Library/Mobile Documents/com~apple~CloudDocs/DevToolsSuite/
+#[tauri::command]
+fn get_icloud_path() -> Result<Option<String>, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var("HOME").map_err(|e| e.to_string())?;
+        let icloud_base = format!("{}/Library/Mobile Documents/com~apple~CloudDocs", home);
+
+        // Check if iCloud Drive exists
+        if !std::path::Path::new(&icloud_base).exists() {
+            return Ok(None);
+        }
+
+        let app_folder = format!("{}/DevToolsSuite", icloud_base);
+
+        // Create app folder if it doesn't exist
+        if !std::path::Path::new(&app_folder).exists() {
+            std::fs::create_dir_all(&app_folder).map_err(|e| e.to_string())?;
+        }
+
+        Ok(Some(app_folder))
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(None)
+    }
+}
+
+/// Check if iCloud Drive is available
+#[tauri::command]
+fn is_icloud_available() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var("HOME").unwrap_or_default();
+        let icloud_base = format!("{}/Library/Mobile Documents/com~apple~CloudDocs", home);
+        std::path::Path::new(&icloud_base).exists()
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        false
+    }
+}
+
+/// Read a file from iCloud
+#[tauri::command]
+fn icloud_read_file(filename: String) -> Result<Option<String>, String> {
+    let icloud_path = get_icloud_path()?;
+
+    match icloud_path {
+        Some(path) => {
+            let file_path = format!("{}/{}", path, filename);
+            if std::path::Path::new(&file_path).exists() {
+                let content = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+                Ok(Some(content))
+            } else {
+                Ok(None)
+            }
+        }
+        None => Ok(None)
+    }
+}
+
+/// Write a file to iCloud
+#[tauri::command]
+fn icloud_write_file(filename: String, content: String) -> Result<(), String> {
+    let icloud_path = get_icloud_path()?;
+
+    match icloud_path {
+        Some(path) => {
+            let file_path = format!("{}/{}", path, filename);
+            std::fs::write(&file_path, content).map_err(|e| e.to_string())?;
+            Ok(())
+        }
+        None => Err("iCloud Drive not available".to_string())
+    }
+}
+
+/// Get file modification time from iCloud (for sync comparison)
+#[tauri::command]
+fn icloud_get_file_modified(filename: String) -> Result<Option<u64>, String> {
+    let icloud_path = get_icloud_path()?;
+
+    match icloud_path {
+        Some(path) => {
+            let file_path = format!("{}/{}", path, filename);
+            if std::path::Path::new(&file_path).exists() {
+                let metadata = std::fs::metadata(&file_path).map_err(|e| e.to_string())?;
+                let modified = metadata.modified().map_err(|e| e.to_string())?;
+                let duration = modified.duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?;
+                Ok(Some(duration.as_secs()))
+            } else {
+                Ok(None)
+            }
+        }
+        None => Ok(None)
+    }
+}
+
+// ============================================================================
 // Stopwatch Tray & Alert
 // ============================================================================
 
@@ -602,6 +709,7 @@ fn get_quick_stats() -> String {
 pub static STOPWATCH_STATE: std::sync::LazyLock<Arc<Mutex<Option<String>>>> =
     std::sync::LazyLock::new(|| Arc::new(Mutex::new(None)));
 
+
 fn create_tray_menu<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> {
     // Main item
     let open = MenuItem::with_id(app, "open", "Open Dev Tools Suite", true, None::<&str>)?;
@@ -643,6 +751,9 @@ fn create_tray_menu<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu
         ],
     )?;
 
+    // Quick Notes - single item to toggle popover
+    let quick_notes_item = MenuItem::with_id(app, "toggle_quick_notes", "Quick Notes", true, None::<&str>)?;
+
     // System stats (disabled, just for display)
     let stats = get_quick_stats();
     let stats_item = MenuItem::with_id(app, "stats", &stats, false, None::<&str>)?;
@@ -665,12 +776,12 @@ fn create_tray_menu<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu
     if let Some(sw_item) = stopwatch_item {
         Menu::with_items(
             app,
-            &[&open, &separator1, &quick_generate, &clipboard_tools, &separator2, &sw_item, &stats_item, &separator3, &quit],
+            &[&open, &separator1, &quick_generate, &clipboard_tools, &quick_notes_item, &separator2, &sw_item, &stats_item, &separator3, &quit],
         )
     } else {
         Menu::with_items(
             app,
-            &[&open, &separator1, &quick_generate, &clipboard_tools, &separator2, &stats_item, &separator3, &quit],
+            &[&open, &separator1, &quick_generate, &clipboard_tools, &quick_notes_item, &separator2, &stats_item, &separator3, &quit],
         )
     }
 }
@@ -795,6 +906,18 @@ pub fn setup_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
                     }
                 }
 
+                // Quick Notes - toggle popover
+                "toggle_quick_notes" => {
+                    #[cfg(target_os = "macos")]
+                    {
+                        if !app.is_popover_shown() {
+                            app.show_popover();
+                        } else {
+                            app.hide_popover();
+                        }
+                    }
+                }
+
                 "quit" => {
                     app.exit(0);
                 }
@@ -803,6 +926,17 @@ pub fn setup_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
         })
         .build(app)?;
 
+    Ok(())
+}
+
+// Command to refresh tray menu (e.g., when notes change)
+#[tauri::command]
+fn refresh_tray_menu(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(tray) = app.tray_by_id(&TrayIconId::new("main")) {
+        if let Ok(menu) = create_tray_menu(&app) {
+            let _ = tray.set_menu(Some(menu));
+        }
+    }
     Ok(())
 }
 
@@ -828,14 +962,22 @@ fn set_stopwatch_tray(app: tauri::AppHandle, time: Option<String>) -> Result<(),
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             Some(vec!["--hidden"]),
-        ))
+        ));
+
+    // Add nspopover plugin on macOS
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.plugin(tauri_plugin_nspopover::init());
+    }
+
+    builder
         .invoke_handler(tauri::generate_handler![
             get_system_stats,
             pg_test_connection,
@@ -843,16 +985,51 @@ pub fn run() {
             pg_execute_query,
             update_tray_title,
             set_stopwatch_tray,
+            refresh_tray_menu,
             sync_test_connection,
             sync_init_schema,
             sync_notes_pull,
             sync_notes_push,
             capture_all_screens,
-            get_pixel_color
+            get_pixel_color,
+            // iCloud sync
+            is_icloud_available,
+            get_icloud_path,
+            icloud_read_file,
+            icloud_write_file,
+            icloud_get_file_modified
         ])
         .setup(|app| {
             #[cfg(desktop)]
             setup_tray(app.handle())?;
+
+            // Set up popover window on macOS
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::WebviewWindowBuilder;
+
+                // Create the popover window dynamically
+                let popover_window = WebviewWindowBuilder::new(
+                    app,
+                    "popover",
+                    tauri::WebviewUrl::App("/popover/notes".into())
+                )
+                .title("Quick Notes")
+                .inner_size(300.0, 400.0)
+                .visible(false)
+                .transparent(true)
+                .decorations(false)
+                .skip_taskbar(true)
+                .always_on_top(true)
+                .build();
+
+                if let Ok(window) = popover_window {
+                    window.to_popover(ToPopoverOptions {
+                        is_fullsize_content: true,
+                    });
+                }
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {

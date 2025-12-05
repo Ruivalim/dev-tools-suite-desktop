@@ -1,10 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 	import { StickyNote, Plus, X, Trash2, Search, Copy, Check, Maximize2, Minimize2, Cloud, CloudOff, Loader2, RefreshCw } from 'lucide-svelte';
 	import { cn } from '$lib/utils/cn';
 	import { Store } from '@tauri-apps/plugin-store';
 	import { invoke } from '@tauri-apps/api/core';
 	import { syncStore } from '$lib/stores/sync.svelte';
+	import { icloudStore } from '$lib/stores/icloud.svelte';
 
 	interface Note {
 		id: string;
@@ -55,17 +58,45 @@
 			notes = saved;
 		}
 
-		// Initialize sync and pull from remote
+		// Initialize sync stores
 		await syncStore.init();
+		await icloudStore.init();
+
+		// Sync with iCloud if enabled
+		if (icloudStore.enabled) {
+			notes = await icloudStore.syncFile('notes.json', notes, 'notes');
+			await saveNotesLocal();
+		}
+
+		// Pull from PostgreSQL if configured
 		if (syncStore.isConfigured) {
 			await pullFromRemote();
 		}
+
+		// Check for ?action=new from tray menu
+		const action = $page.url.searchParams.get('action');
+		if (action === 'new') {
+			openCreateModal();
+			// Clear the URL parameter
+			goto('/tools/notes', { replaceState: true });
+		}
 	});
 
-	async function saveNotes() {
+	async function saveNotesLocal() {
 		if (store) {
 			await store.set('notes', notes);
 			await store.save();
+			// Refresh tray menu to show updated notes
+			invoke('refresh_tray_menu').catch(() => {});
+		}
+	}
+
+	async function saveNotes() {
+		await saveNotesLocal();
+
+		// Sync to iCloud if enabled
+		if (icloudStore.enabled) {
+			await icloudStore.writeToICloud('notes.json', notes, 'notes');
 		}
 	}
 
@@ -211,7 +242,8 @@
 
 		if (viewingNote) {
 			// Editing existing note
-			const index = notes.findIndex((s) => s.id === viewingNote.id);
+			const currentNote = viewingNote;
+			const index = notes.findIndex((s) => s.id === currentNote.id);
 			if (index !== -1) {
 				changedNote = {
 					...notes[index],
@@ -501,7 +533,7 @@
 							<Maximize2 class="h-4 w-4" />
 						{/if}
 					</button>
-					<button onclick={() => handleDelete(viewingNote)} class="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-500" title="Delete">
+					<button onclick={() => viewingNote && handleDelete(viewingNote)} class="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-500" title="Delete">
 						<Trash2 class="h-4 w-4" />
 					</button>
 					<button onclick={closeModals} class="rounded-lg p-1 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800">

@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Dev Tools Suite",
         "width": 1000,
         "height": 700,

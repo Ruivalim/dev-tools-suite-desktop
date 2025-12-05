@@ -1,5 +1,6 @@
 import { Store } from '@tauri-apps/plugin-store';
 import { SvelteSet } from 'svelte/reactivity';
+import { icloudStore } from './icloud.svelte';
 
 export interface Bookmark {
 	id: string;
@@ -9,6 +10,7 @@ export interface Bookmark {
 	tags: string[];
 	favicon?: string;
 	createdAt: number;
+	updatedAt?: number;
 }
 
 let bookmarks = $state<Bookmark[]>([]);
@@ -24,12 +26,27 @@ async function loadBookmarks() {
 	if (saved) {
 		bookmarks = saved;
 	}
+
+	// Sync with iCloud if enabled
+	if (icloudStore.enabled) {
+		bookmarks = await icloudStore.syncFile('bookmarks.json', bookmarks, 'bookmarks');
+		await saveBookmarksLocal();
+	}
 }
 
-async function saveBookmarks() {
+async function saveBookmarksLocal() {
 	if (store) {
 		await store.set('bookmarks', bookmarks);
 		await store.save();
+	}
+}
+
+async function saveBookmarks() {
+	await saveBookmarksLocal();
+
+	// Sync to iCloud if enabled
+	if (icloudStore.enabled) {
+		await icloudStore.writeToICloud('bookmarks.json', bookmarks, 'bookmarks');
 	}
 }
 
