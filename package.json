@@ -12,7 +12,8 @@
     "tauri": "tauri",
     "format": "NODE_OPTIONS=--max_old_space_size=4096 prettier --write .",
     "lint": "prettier --check . ; eslint .",
-    "lint:fix": "NODE_OPTIONS=--max_old_space_size=4096 prettier --write . && NODE_OPTIONS=--max_old_space_size=4096 eslint --fix ."
+    "lint:fix": "NODE_OPTIONS=--max_old_space_size=4096 prettier --write . && NODE_OPTIONS=--max_old_space_size=4096 eslint --fix .",
+    "prepare": "husky"
   },
   "license": "MIT",
   "dependencies": {
@@ -50,6 +51,7 @@
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-svelte": "^3.13.0",
+    "husky": "^9.1.7",
     "postcss": "^8.5.6",
     "prettier": "^3.6.2",
     "prettier-plugin-svelte": "^3.4.0",

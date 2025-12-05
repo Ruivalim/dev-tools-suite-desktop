@@ -1,0 +1,4 @@
+#!/bin/bash
+
+.husky/scripts/format_and_lint.sh || exit 1
+.husky/scripts/package_json_version_checker.sh || exit 1
