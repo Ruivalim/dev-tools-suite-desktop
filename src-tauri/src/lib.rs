@@ -1066,6 +1066,26 @@ pub fn run() {
                 api.prevent_close();
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Reopen { has_visible_windows, .. } = event {
+                if !has_visible_windows {
+                    if let Some(window) = app.get_webview_window("main") {
+                        #[cfg(target_os = "macos")]
+                        show_in_dock();
+
+                        let _ = window.show();
+                        let _ = window.unminimize();
+                        let _ = window.set_focus();
+
+                        #[cfg(target_os = "macos")]
+                        unsafe {
+                            use cocoa::appkit::NSApp;
+                            NSApp().activateIgnoringOtherApps_(true);
+                        }
+                    }
+                }
+            }
+        });
 }
