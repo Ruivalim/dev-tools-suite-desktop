@@ -119,6 +119,17 @@ export const icloudStore = {
 		await loadConfig();
 	},
 
+	/**
+	 * Refresh encryption key state from backend (useful for popover windows)
+	 */
+	async refreshEncryptionKeyState() {
+		try {
+			hasEncryptionKey = await invoke<boolean>('icloud_has_encryption_key');
+		} catch {
+			hasEncryptionKey = false;
+		}
+	},
+
 	async setEnabled(value: boolean) {
 		config.enabled = value;
 		await saveConfig();

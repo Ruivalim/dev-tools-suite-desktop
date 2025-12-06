@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { Plus, Check, Copy, X, Trash2, Lock } from 'lucide-svelte';
+	import { Plus, Check, Copy, X, Trash2, Lock, RefreshCw, Loader2 } from 'lucide-svelte';
 	import { cn } from '$lib/utils/cn';
 	import { Store } from '@tauri-apps/plugin-store';
 	import { invoke } from '@tauri-apps/api/core';
@@ -20,6 +20,9 @@
 	let copiedId = $state<string | null>(null);
 	let showAddForm = $state(false);
 	let newNoteContent = $state('');
+	let dataLoaded = $state(false);
+	let checking = $state(false);
+	let initialized = $state(false);
 
 	const activeNotes = $derived(notes.filter((n) => !n.deleted).slice(0, 10));
 
@@ -37,14 +40,8 @@
 
 	let unsubscribeForceSync: (() => void) | null = null;
 
-	onMount(async () => {
-		// Initialize iCloud first to check encryption state
-		await icloudStore.init();
-
-		// Don't load data if encryption is enabled but no password
-		if (icloudStore.needsPassword) {
-			return;
-		}
+	async function loadNotesData() {
+		if (dataLoaded) return;
 
 		store = await Store.load('notes.json');
 		const saved = await store.get<Note[]>('notes');
@@ -59,15 +56,37 @@
 		}
 
 		// Listen for force sync events from iCloud
-		unsubscribeForceSync = icloudStore.onForceSync(async () => {
-			if (icloudStore.enabled) {
-				notes = await icloudStore.syncFile('notes.json', notes, 'notes');
-				await saveNotesLocal();
-			}
-		});
+		if (!unsubscribeForceSync) {
+			unsubscribeForceSync = icloudStore.onForceSync(async () => {
+				if (icloudStore.enabled) {
+					notes = await icloudStore.syncFile('notes.json', notes, 'notes');
+					await saveNotesLocal();
+				}
+			});
+		}
 
 		// Sync when popover becomes visible
 		document.addEventListener('visibilitychange', handleVisibilityChange);
+
+		dataLoaded = true;
+	}
+
+	// React to unlock events - when needsPassword changes from true to false
+	$effect(() => {
+		if (initialized && !icloudStore.needsPassword && !dataLoaded) {
+			loadNotesData();
+		}
+	});
+
+	onMount(async () => {
+		// Initialize iCloud first to check encryption state
+		await icloudStore.init();
+		initialized = true;
+
+		// Load data if encryption is not blocking
+		if (!icloudStore.needsPassword) {
+			await loadNotesData();
+		}
 	});
 
 	onDestroy(() => {
@@ -140,16 +159,44 @@
 			newNoteContent = '';
 		}
 	}
+
+	async function checkUnlock() {
+		checking = true;
+		try {
+			// Refresh encryption key state from backend
+			await icloudStore.refreshEncryptionKeyState();
+
+			// If unlocked, load data
+			if (!icloudStore.needsPassword) {
+				await loadNotesData();
+			}
+		} finally {
+			checking = false;
+		}
+	}
 </script>
 
-{#if icloudStore.needsPassword}
+{#if !initialized}
+	<!-- Loading State -->
+	<div class="flex h-screen flex-col items-center justify-center p-4">
+		<Loader2 class="h-6 w-6 animate-spin text-slate-400" />
+	</div>
+{:else if icloudStore.needsPassword && !dataLoaded}
 	<!-- Locked State -->
 	<div class="flex h-screen flex-col items-center justify-center p-4">
 		<div class="mb-3 rounded-full bg-amber-100 p-3 dark:bg-amber-900/30">
 			<Lock class="h-6 w-6 text-amber-600 dark:text-amber-400" />
 		</div>
 		<h2 class="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-100">Notes Locked</h2>
-		<p class="text-center text-xs text-slate-500 dark:text-slate-400">Enter your password in Settings to unlock.</p>
+		<p class="mb-3 text-center text-xs text-slate-500 dark:text-slate-400">Enter your password in Settings to unlock.</p>
+		<button
+			onclick={checkUnlock}
+			disabled={checking}
+			class="flex items-center gap-1.5 rounded-md bg-accent-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-600 disabled:opacity-50"
+		>
+			<RefreshCw class={cn('h-3.5 w-3.5', checking && 'animate-spin')} />
+			{checking ? 'Checking...' : 'Check again'}
+		</button>
 	</div>
 {:else}
 	<div class="flex h-screen flex-col overflow-hidden">
