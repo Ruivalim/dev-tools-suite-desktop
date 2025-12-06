@@ -32,6 +32,14 @@ async function loadBookmarks() {
 		bookmarks = await icloudStore.syncFile('bookmarks.json', bookmarks, 'bookmarks');
 		await saveBookmarksLocal();
 	}
+
+	// Listen for force sync events
+	icloudStore.onForceSync(async () => {
+		if (icloudStore.enabled) {
+			bookmarks = await icloudStore.syncFile('bookmarks.json', bookmarks, 'bookmarks');
+			await saveBookmarksLocal();
+		}
+	});
 }
 
 async function saveBookmarksLocal() {

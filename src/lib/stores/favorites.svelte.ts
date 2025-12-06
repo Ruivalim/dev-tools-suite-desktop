@@ -9,6 +9,11 @@ async function loadFavorites() {
 	if (initialized) return;
 	initialized = true;
 
+	// Don't load if encryption is enabled but no password
+	if (icloudStore.needsPassword) {
+		return;
+	}
+
 	store = await Store.load('favorites.json');
 	const saved = await store.get<string[]>('favorites');
 	if (saved) {
@@ -26,6 +31,19 @@ async function loadFavorites() {
 			await icloudStore.writeToICloud('favorites.json', favorites, 'favorites');
 		}
 	}
+
+	// Listen for force sync events
+	icloudStore.onForceSync(async () => {
+		if (icloudStore.enabled) {
+			const icloudFavorites = await icloudStore.readFromICloud<string>('favorites.json', 'favorites');
+			if (icloudFavorites) {
+				const merged = [...favorites, ...icloudFavorites].filter((id, index, arr) => arr.indexOf(id) === index);
+				favorites = merged;
+				await saveFavoritesLocal();
+				await icloudStore.writeToICloud('favorites.json', favorites, 'favorites');
+			}
+		}
+	});
 }
 
 async function saveFavoritesLocal() {

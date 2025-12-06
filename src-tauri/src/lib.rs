@@ -573,6 +573,141 @@ fn icloud_get_file_modified(filename: String) -> Result<Option<u64>, String> {
 }
 
 // ============================================================================
+// iCloud Encryption (Keychain + AES-GCM)
+// ============================================================================
+
+use aes_gcm::{
+    aead::{Aead, KeyInit},
+    Aes256Gcm, Key, Nonce,
+};
+
+// In-memory encryption key (persists while app is running)
+static ENCRYPTION_KEY: std::sync::LazyLock<Arc<Mutex<Option<[u8; 32]>>>> =
+    std::sync::LazyLock::new(|| Arc::new(Mutex::new(None)));
+
+// Fixed salt for key derivation (in production, this should be stored per-user)
+const KEY_DERIVATION_SALT: &[u8] = b"DevToolsSuite_iCloud_Salt_2024";
+
+/// Check if encryption key is set in memory
+#[tauri::command]
+fn icloud_has_encryption_key() -> bool {
+    let key = ENCRYPTION_KEY.lock().unwrap();
+    key.is_some()
+}
+
+/// Set encryption password - derives key and stores in memory
+#[tauri::command]
+fn icloud_set_encryption_password(password: String) -> Result<(), String> {
+    use sha2::{Sha256, Digest};
+
+    if password.is_empty() {
+        return Err("Password cannot be empty".to_string());
+    }
+
+    // Derive 256-bit key from password using SHA256(salt + password)
+    let mut hasher = Sha256::new();
+    hasher.update(KEY_DERIVATION_SALT);
+    hasher.update(password.as_bytes());
+    let result = hasher.finalize();
+
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&result);
+
+    // Store in memory
+    let mut stored_key = ENCRYPTION_KEY.lock().unwrap();
+    *stored_key = Some(key);
+
+    Ok(())
+}
+
+/// Clear encryption key from memory
+#[tauri::command]
+fn icloud_clear_encryption_key() {
+    let mut key = ENCRYPTION_KEY.lock().unwrap();
+    *key = None;
+}
+
+/// Get encryption key from memory
+fn get_encryption_key() -> Result<[u8; 32], String> {
+    let key = ENCRYPTION_KEY.lock().unwrap();
+    key.ok_or_else(|| "Encryption key not set. Please enter your password.".to_string())
+}
+
+/// Encrypt data using AES-256-GCM
+fn encrypt_data(data: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, String> {
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+
+    // Generate random nonce
+    let nonce_bytes: [u8; 12] = rand::random();
+    let nonce = Nonce::from_slice(&nonce_bytes);
+
+    let ciphertext = cipher.encrypt(nonce, data).map_err(|e| e.to_string())?;
+
+    // Prepend nonce to ciphertext: nonce (12 bytes) + ciphertext
+    let mut result = nonce_bytes.to_vec();
+    result.extend(ciphertext);
+    Ok(result)
+}
+
+/// Decrypt data using AES-256-GCM
+fn decrypt_data(encrypted: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, String> {
+    if encrypted.len() < 12 {
+        return Err("Invalid encrypted data".to_string());
+    }
+
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+
+    let nonce = Nonce::from_slice(&encrypted[..12]);
+    let ciphertext = &encrypted[12..];
+
+    cipher.decrypt(nonce, ciphertext).map_err(|e| e.to_string())
+}
+
+/// Write encrypted file to iCloud
+#[tauri::command]
+fn icloud_write_file_encrypted(filename: String, content: String) -> Result<(), String> {
+    let key = get_encryption_key()?;
+    let encrypted = encrypt_data(content.as_bytes(), &key)?;
+    let encrypted_base64 = BASE64.encode(&encrypted);
+
+    let icloud_path = get_icloud_path()?;
+    match icloud_path {
+        Some(path) => {
+            let file_path = format!("{}/{}", path, filename);
+            std::fs::write(&file_path, encrypted_base64).map_err(|e| e.to_string())?;
+            Ok(())
+        }
+        None => Err("iCloud Drive not available".to_string()),
+    }
+}
+
+/// Read and decrypt file from iCloud
+#[tauri::command]
+fn icloud_read_file_encrypted(filename: String) -> Result<Option<String>, String> {
+    let icloud_path = get_icloud_path()?;
+
+    match icloud_path {
+        Some(path) => {
+            let file_path = format!("{}/{}", path, filename);
+
+            if std::path::Path::new(&file_path).exists() {
+                let encrypted_base64 = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+                let encrypted = BASE64.decode(encrypted_base64.trim().as_bytes()).map_err(|e| e.to_string())?;
+
+                let key = get_encryption_key()?;
+                let decrypted = decrypt_data(&encrypted, &key)?;
+
+                let content = String::from_utf8(decrypted).map_err(|e| e.to_string())?;
+                Ok(Some(content))
+            } else {
+                Ok(None)
+            }
+        }
+        None => Ok(None),
+    }
+}
+
+// ============================================================================
 // Stopwatch Tray & Alert
 // ============================================================================
 
@@ -997,7 +1132,13 @@ pub fn run() {
             get_icloud_path,
             icloud_read_file,
             icloud_write_file,
-            icloud_get_file_modified
+            icloud_get_file_modified,
+            // iCloud encryption
+            icloud_has_encryption_key,
+            icloud_set_encryption_password,
+            icloud_clear_encryption_key,
+            icloud_write_file_encrypted,
+            icloud_read_file_encrypted
         ])
         .setup(|app| {
             #[cfg(desktop)]
